@@ -3,6 +3,9 @@ import numpy as np
 from deeplearning.layers import *
 from deeplearning.layer_utils import *
 
+from hw1.deeplearning import layer_utils
+from hw1.deeplearning import layers
+
 
 class TwoLayerNet(object):
     """
@@ -45,7 +48,10 @@ class TwoLayerNet(object):
         # weights and biases using the keys 'W1' and 'b1' and second layer weights #
         # and biases using the keys 'W2' and 'b2'.                                 #
         ############################################################################
-        pass
+        self.params['W1'] = np.random.normal(scale=weight_scale, size=(input_dim, hidden_dim))
+        self.params['W2'] = np.random.normal(scale=weight_scale, size=(hidden_dim, num_classes))
+        self.params['b1'] = np.zeros(shape=(hidden_dim,))
+        self.params['b2'] = np.zeros(shape=(num_classes,))
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -74,7 +80,8 @@ class TwoLayerNet(object):
         # TODO: Implement the forward pass for the two-layer net, computing the    #
         # class scores for X and storing them in the scores variable.              #
         ############################################################################
-        pass
+        scores, fc1_relu_cache = layer_utils.affine_relu_forward(x=X, w=self.params['W1'], b=self.params['b1'])
+        scores, fc2_cache = layers.affine_forward(x=scores, w=self.params['W2'], b=self.params['b2'])
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -95,7 +102,18 @@ class TwoLayerNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
-        pass
+        loss, delta = layers.softmax_loss(x=scores, y=y)
+
+        delta, grads['W2'], grads['b2']  = layers.affine_backward(dout=delta, cache=fc2_cache)
+        delta, grads['W1'], grads['b1'] = layer_utils.affine_relu_backward(dout=delta, cache=fc1_relu_cache)
+
+        # regularization
+        W1, W2 = self.params['W1'], self.params['W2']
+        penalty = (np.sum(np.square(W1)) + np.sum(np.square(W2))) * 0.5
+        loss = loss + self.reg * penalty
+        grads['W1'] += self.reg * W1
+        grads['W2'] += self.reg * W2
+
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################

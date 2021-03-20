@@ -179,7 +179,11 @@ class FullyConnectedNet(object):
         # beta2, etc. Scale parameters should be initialized to one and shift      #
         # parameters should be initialized to zero.                                #
         ############################################################################
-        pass
+
+        dimensions = zip([input_dim, *hidden_dims], [*hidden_dims, num_classes])
+        for i, (in_dim, out_dim) in enumerate(dimensions):
+            self.params[f'W{i+1}'] = np.random.normal(loc=0.0, scale=weight_scale, size=(in_dim, out_dim))
+            self.params[f'b{i+1}'] = np.zeros(shape=(out_dim,))
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -236,7 +240,16 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-        pass
+        z = X
+        caches = []
+        for i in range(1, self.num_layers+1):
+            W, b = self.params[f'W{i}'], self.params[f'b{i}']
+            if i < self.num_layers:
+                z, cache = layer_utils.affine_relu_forward(x=z, w=W, b=b)
+            else:
+                z, cache = layers.affine_forward(x=z, w=W, b=b)
+            caches.append(cache)
+        scores = z
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -260,9 +273,27 @@ class FullyConnectedNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
-        pass
+        loss, delta = layers.softmax_loss(x=scores, y=y)
+        penalty = 0.0
+        for i, cache in reversed(list(enumerate(caches, start=1))):
+            if i == self.num_layers:
+                delta, grads[f'W{i}'], grads[f'b{i}'] = layers.affine_backward(dout=delta, cache=cache)
+            else:
+                delta, grads[f'W{i}'], grads[f'b{i}'] = layer_utils.affine_relu_backward(dout=delta, cache=cache)
+
+            # regularization
+            W = self.params[f'W{i}']
+            penalty += self.reg * np.sum(np.square(W)) * 1.0 / self.num_layers
+
+            grads[f'W{i}'] += self.reg * W * 2.0 / self.num_layers
+
+        loss = loss + penalty
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
 
         return loss, grads
+
+
+if __name__ == '__main__':
+    pass

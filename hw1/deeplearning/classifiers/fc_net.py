@@ -283,11 +283,10 @@ class FullyConnectedNet(object):
 
             # regularization
             W = self.params[f'W{i}']
-            penalty += self.reg * np.sum(np.square(W)) * 1.0 / self.num_layers
+            penalty += np.sum(np.square(W))
+            grads[f'W{i}'] += self.reg * W
 
-            grads[f'W{i}'] += self.reg * W * 2.0 / self.num_layers
-
-        loss = loss + penalty
+        loss = loss + self.reg * 0.5 * penalty
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################

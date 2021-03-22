@@ -184,6 +184,9 @@ class FullyConnectedNet(object):
         for i, (in_dim, out_dim) in enumerate(dimensions):
             self.params[f'W{i+1}'] = np.random.normal(loc=0.0, scale=weight_scale, size=(in_dim, out_dim))
             self.params[f'b{i+1}'] = np.zeros(shape=(out_dim,))
+            if use_batchnorm and i < self.num_layers - 1:
+                self.params[f'gamma{i + 1}'] = np.ones(shape=(out_dim,))
+                self.params[f'beta{i + 1}'] = np.zeros(shape=(out_dim,))
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -225,7 +228,7 @@ class FullyConnectedNet(object):
             self.dropout_param['mode'] = mode
         if self.use_batchnorm:
             for bn_param in self.bn_params:
-                bn_param[mode] = mode
+                bn_param['mode'] = mode
 
         scores = None
         ############################################################################
@@ -246,6 +249,10 @@ class FullyConnectedNet(object):
             W, b = self.params[f'W{i}'], self.params[f'b{i}']
             if i < self.num_layers:
                 z, cache = layer_utils.affine_relu_forward(x=z, w=W, b=b)
+                if self.use_batchnorm:
+                    gamma, beta = self.params[f'gamma{i}'], self.params[f'beta{i}']
+                    z, bn_cache = layers.batchnorm_forward(x=z, gamma=gamma, beta=beta, bn_param=self.bn_params[i - 1])
+                    cache = (cache, bn_cache)
             else:
                 z, cache = layers.affine_forward(x=z, w=W, b=b)
             caches.append(cache)
@@ -279,7 +286,11 @@ class FullyConnectedNet(object):
             if i == self.num_layers:
                 delta, grads[f'W{i}'], grads[f'b{i}'] = layers.affine_backward(dout=delta, cache=cache)
             else:
+                if self.use_batchnorm:
+                    cache, bn_cache = cache
+                    delta, grads[f'gamma{i}'], grads[f'beta{i}'] = layers.batchnorm_backward(dout=delta, cache=bn_cache)
                 delta, grads[f'W{i}'], grads[f'b{i}'] = layer_utils.affine_relu_backward(dout=delta, cache=cache)
+
 
             # regularization
             W = self.params[f'W{i}']

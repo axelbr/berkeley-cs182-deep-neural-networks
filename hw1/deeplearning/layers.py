@@ -373,23 +373,20 @@ def conv_forward_naive(x, w, b, conv_param):
     # TODO: Implement the convolutional forward pass.                           #
     # Hint: you can use the function np.pad for padding.                        #
     #############################################################################
-    stride, pad = conv_param['pad'], conv_param['pad']
-    x = np.pad(x, pad_width=((0,0), (0,0), (pad,pad), (pad,pad)))
+    stride, pad = conv_param['stride'], conv_param['pad']
     N, C_in, H_in, W_in = x.shape
     C_out, _, H_f, W_f = w.shape
-    H_out = int((H_in - H_f) / stride)
-    W_out = int((W_in - W_f) / stride)
-    feature_maps = []
-    z = np.zeros(shape=(N, C_out, H_in, W_in))
+    x = np.pad(x, pad_width=((0, 0), (0, 0), (pad, pad), (pad, pad)))
+    H_out = 1 + (H_in + 2 * pad - H_f) // stride
+    W_out = 1 + (W_in + 2 * pad - W_f) // stride
+    z = np.zeros(shape=(N, C_out, H_out, W_out))
 
     for i in range(H_out):
         for j in range(W_out):
-            filtered = x[..., i:i+H_f, j:j+W_f] * w[0]
-            h_z = int(i + H_f / 2)
-            w_z = int(j + W_f / 2)
-            z[..., h_z, w_z] = np.sum(filtered, axis=(-1, -2))
-
-
+            for f in range(C_out):
+                filtered = x[..., i*stride:i*stride+H_f, j*stride:j*stride+W_f]
+                z[..., f, i, j] = np.sum(filtered * w[f], axis=(-1, -2, -3)) + b[f]
+    out = z
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################

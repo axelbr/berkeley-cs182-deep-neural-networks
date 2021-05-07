@@ -461,7 +461,14 @@ def max_pool_forward_naive(x, pool_param):
     #############################################################################
     # TODO: Implement the max pooling forward pass                              #
     #############################################################################
-    pass
+    height, width, stride = pool_param['pool_height'], pool_param['pool_width'], pool_param['stride']
+    N, C, H, W = x.shape
+    H_out = (H - height) // stride + 1
+    W_out = (W - width) // stride + 1
+    out = np.zeros((N, C, H_out, W_out))
+    for i in range(H_out):
+        for j in range(W_out):
+            out[..., i, j] = np.max(x[..., i * stride:i * stride + height, j * stride:j * stride + width], axis=(2,3))
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################
@@ -484,7 +491,20 @@ def max_pool_backward_naive(dout, cache):
     #############################################################################
     # TODO: Implement the max pooling backward pass                             #
     #############################################################################
-    pass
+    x, pool_param = cache
+    height, width, stride = pool_param['pool_height'], pool_param['pool_width'], pool_param['stride']
+    N, C, H, W = x.shape
+    H_out = (H - height) // stride + 1
+    W_out = (W - width) // stride + 1
+    dx = np.ones_like(x)
+    for i in range(H_out):
+        for j in range(W_out):
+            window = x[..., i * stride:i * stride + height, j * stride:j * stride + width]
+            indices = np.arange(width*height).reshape((height, width))
+            indices = np.array([indices]*N*C).reshape((N, C, height, width))
+            argmax = np.argmax(window.reshape(N, C, -1), axis=2)
+            mask = argmax[:, :, None, None] == indices
+            dx[..., i * stride:i * stride + height, j * stride:j * stride + width] = dout[..., i, j, None, None] * mask
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################

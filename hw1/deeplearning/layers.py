@@ -377,7 +377,7 @@ def conv_forward_naive(x, w, b, conv_param):
     stride, pad = conv_param['stride'], conv_param['pad']
     N, C_in, H_in, W_in = x.shape
     C_out, _, H_f, W_f = w.shape
-    x = np.pad(x, pad_width=((0, 0), (0, 0), (pad, pad), (pad, pad)))
+    x_pad = np.pad(x, pad_width=((0, 0), (0, 0), (pad, pad), (pad, pad)))
     H_out = 1 + (H_in + 2 * pad - H_f) // stride
     W_out = 1 + (W_in + 2 * pad - W_f) // stride
     z = np.zeros(shape=(N, C_out, H_out, W_out))
@@ -385,7 +385,7 @@ def conv_forward_naive(x, w, b, conv_param):
     for i in range(H_out):
         for j in range(W_out):
             for f in range(C_out):
-                filtered = x[..., i*stride:i*stride+H_f, j*stride:j*stride+W_f]
+                filtered = x_pad[..., i*stride:i*stride+H_f, j*stride:j*stride+W_f]
                 z[..., f, i, j] = np.sum(filtered * w[f], axis=(-1, -2, -3)) + b[f]
     out = z
     #############################################################################
@@ -413,10 +413,29 @@ def conv_backward_naive(dout, cache):
     # TODO: Implement the convolutional backward pass.                          #
     #############################################################################
     x, w, b, conv_param = cache
+    stride, pad = conv_param['stride'], conv_param['pad']
+    x_pad = np.pad(x, pad_width=((0, 0), (0, 0), (pad, pad), (pad, pad)))
+
     dw = np.zeros_like(w)
     dx = np.zeros_like(x)
+    dx_pad = np.pad(dx, pad_width=((0, 0), (0, 0), (pad, pad), (pad, pad)))
     db = np.zeros_like(b)
 
+    N, C_in, H_in, W_in = x.shape
+    C_out, _, H_f, W_f = w.shape
+
+    H_out = 1 + (H_in + 2 * pad - H_f) // stride
+    W_out = 1 + (W_in + 2 * pad - W_f) // stride
+
+    for i in range(H_out):
+        for j in range(W_out):
+            for f in range(C_out):
+                field = x_pad[..., i * stride: i * stride + H_f, j * stride: j * stride + W_f]
+                output = np.tile(dout[:, f, i, j], (*field.shape[1:], 1)).T
+                dw[f] += np.sum(field * output, axis=0)
+                dx_pad[..., i * stride: i * stride + H_f, j * stride: j * stride + W_f] += w[f] * output
+    dx = dx_pad[..., pad:-pad, pad:-pad]
+    db = np.sum(dout, axis=(0, 2, 3))
     #############################################################################
     #                             END OF YOUR CODE                              #
     #############################################################################

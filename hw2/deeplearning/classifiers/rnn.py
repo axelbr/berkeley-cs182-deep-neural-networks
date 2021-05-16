@@ -5,6 +5,9 @@ import numpy as np
 from deeplearning.layers import *
 from deeplearning.rnn_layers import *
 
+from hw1.deeplearning import layers
+from hw2.deeplearning import rnn_layers
+
 
 class CaptioningRNN(object):
     """
@@ -137,7 +140,20 @@ class CaptioningRNN(object):
         # defined above to store loss and gradients; grads[k] should give the      #
         # gradients for self.params[k].                                            #
         ############################################################################
-        pass
+
+        h0, proj_cache = layers.affine_forward(features, w=W_proj, b=b_proj)
+        embed, embed_cache = rnn_layers.word_embedding_forward(captions_in, W=W_embed)
+        if self.cell_type == 'rnn':
+            hs, rnn_cache = rnn_layers.rnn_forward(x=embed, h0=h0, Wx=Wx, Wh=Wh, b=b)
+        else:
+            raise NotImplementedError()
+        scores, decoded_cache = rnn_layers.temporal_affine_forward(x=hs, w=W_vocab, b=b_vocab)
+        loss, delta = rnn_layers.temporal_softmax_loss(x=scores, y=captions_out, mask=mask)
+
+        delta, grads['W_vocab'], grads['b_vocab'] = rnn_layers.temporal_affine_backward(delta, decoded_cache)
+        dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_layers.rnn_backward(dh=delta, cache=rnn_cache)
+        _, grads['W_proj'], grads['b_proj'] = layers.affine_backward(dout=dh0, cache=proj_cache)
+        grads['W_embed'] = rnn_layers.word_embedding_backward(dout=dx, cache=embed_cache)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################

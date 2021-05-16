@@ -100,7 +100,15 @@ def rnn_forward(x, h0, Wx, Wh, b):
     # input data. You should use the rnn_step_forward function that you defined  #
     # above. You can use a for loop to help compute the forward pass.            #
     ##############################################################################
-    pass
+    N, T, D = x.shape
+    hidden_states = []
+    cache = []
+    h = h0
+    for t in range(T):
+        h, step_cache = rnn_step_forward(x[:, t], prev_h=h, Wx=Wx, Wh=Wh, b=b)
+        cache.append(step_cache)
+        hidden_states.append(h)
+    h = np.stack(hidden_states, axis=1)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -127,7 +135,23 @@ def rnn_backward(dh, cache):
     # sequence of data. You should use the rnn_step_backward function that you   #
     # defined above. You can use a for loop to help compute the backward pass.   #
     ##############################################################################
-    pass
+    N, T, H = dh.shape
+    x0, h0, Wx, Wh, b = cache[0]
+    _, D = x0.shape
+
+    dx = np.zeros((N,T,D))
+    dWx = np.zeros_like(Wx)
+    dWh = np.zeros_like(Wh)
+    db = np.zeros_like(b)
+    dh_1 = np.zeros((N, H))
+    for t, step_cache in reversed(list(enumerate(cache))):
+        dh_2 = dh[:, t]
+        dx_step, dh_1, dWx_step, dWh_step, db_step = rnn_step_backward(dh_1+dh_2, step_cache)
+        dWx += dWx_step
+        dWh += dWh_step
+        db += db_step
+        dx[:, t] = dx_step
+    dh0 = dh_1
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################

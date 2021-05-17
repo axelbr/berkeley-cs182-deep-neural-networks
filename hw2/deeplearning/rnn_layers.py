@@ -261,7 +261,17 @@ def lstm_step_forward(x, prev_h, prev_c, Wx, Wh, b):
     # TODO: Implement the forward pass for a single timestep of an LSTM.        #
     # You may want to use the numerically stable sigmoid implementation above.  #
     #############################################################################
-    pass
+    N, H = prev_h.shape
+
+    a = x @ Wx + prev_h @ Wh + b
+    a_i, a_f, a_o, a_g = a[:, :H], a[:, H:2*H], a[:, 2*H:3*H], a[:, 3*H:]
+    i = sigmoid(a_i)
+    f = sigmoid(a_f)
+    o = sigmoid(a_o)
+    g = np.tanh(a_g)
+    next_c = f * prev_c + i * g
+    next_h = o * np.tanh(next_c)
+    cache = (x, a, i, f, o, g, next_c, next_h, prev_c, prev_h, Wx, Wh, b)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################
@@ -293,7 +303,41 @@ def lstm_step_backward(dnext_h, dnext_c, cache):
     # HINT: For sigmoid and tanh you can compute local derivatives in terms of  #
     # the output value from the nonlinearity.                                   #
     #############################################################################
-    pass
+    x, a, i, f, o, g, next_c, next_h, prev_c, prev_h, Wx, Wh, b = cache
+
+    df2_af = (1-f) * f
+    df3_ai = (1-i) * i
+    df4_ag = (1-g**2)
+    df5_ao = (1-o) * o
+    df6_df = prev_c
+    df7_di = g
+    df7_dg = i
+    df8_do = np.tanh(next_c)
+    df8_df10 = o
+    df9 = 1
+    df10_nextc = 1 - np.tanh(next_c) ** 2
+
+    delta_f8 = dnext_h
+    delta_f10 = df8_df10 * delta_f8
+    delta_f9 = dnext_c + df10_nextc * delta_f10
+    delta_f6 = df9 * delta_f9
+    delta_f7 = df9 * delta_f9
+    delta_f2 = df6_df * delta_f6
+    delta_f3 = df7_di * delta_f7
+    delta_f4 = df7_dg * delta_f7
+    delta_f5 = df8_do * delta_f8
+    delta_af = df2_af * delta_f2
+    delta_ai = df3_ai * delta_f3
+    delta_ag = df4_ag * delta_f4
+    delta_ao = df5_ao * delta_f5
+    delta_W = np.concatenate([delta_ai, delta_af, delta_ao, delta_ag], axis=-1)
+
+    dx = delta_W @ Wx.T
+    dprev_h = delta_W @ Wh.T
+    dprev_c = f * delta_f6
+    dWx = x.T @ delta_W
+    dWh = prev_h.T @ delta_W
+    db = delta_W.sum(axis=0)
     ##############################################################################
     #                               END OF YOUR CODE                             #
     ##############################################################################

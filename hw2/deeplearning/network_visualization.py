@@ -31,14 +31,17 @@ def compute_saliency_maps(X, y, model):
     # to each input image. You first want to compute the loss over the correct   #
     # scores, and then compute the gradients with torch.autograd.gard.           #
     ##############################################################################
-    pass
+    yhat = model.forward(X)
+    score = torch.gather(yhat, dim=1, index=y.view(-1, 1))
+    score.backward(gradient=torch.ones_like(score))
+    saliency = torch.max(torch.abs(X.grad), dim=1)[0]
     ##############################################################################
     #                             END OF YOUR CODE                               #
     ##############################################################################
     return saliency
 
 
-def make_fooling_image(X, target_y, model):
+def make_fooling_image(X, target_y, model, iter=100):
     """
     Generate a fooling image that is close to X, but that the model classifies
     as target_y.
@@ -69,7 +72,15 @@ def make_fooling_image(X, target_y, model):
     # in fewer than 100 iterations of gradient ascent.                           #
     # You can print your progress over iterations to check your algorithm.       #
     ##############################################################################
-    pass
+    for i in range(iter):
+        yhat = model(X_fooling)
+        score = yhat[:, target_y]
+        score.backward()
+        g = X_fooling.grad
+        with torch.no_grad():
+            X_fooling += learning_rate * g / torch.norm(g, p=2)
+        X_fooling.grad.data.zero_()
+
     ##############################################################################
     #                             END OF YOUR CODE                               #
     ##############################################################################
@@ -98,7 +109,13 @@ def update_class_visulization(model, target_y, l2_reg, learning_rate, img):
     # L2 regularization term!                                              #
     # Be very careful about the signs of elements in your code.            #
     ########################################################################
-    pass
+    yhat = model(img)
+    score = yhat[:, target_y]
+    score.backward()
+
+    with torch.no_grad():
+        g = img.grad - l2_reg * img
+        img += learning_rate * (g / torch.norm(g, 2))
     ########################################################################
     #                             END OF YOUR CODE                         #
     ########################################################################

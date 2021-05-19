@@ -141,17 +141,17 @@ class CaptioningRNN(object):
         # gradients for self.params[k].                                            #
         ############################################################################
 
+        forward = rnn_layers.rnn_forward if self.cell_type == 'rnn' else rnn_layers.lstm_forward
+        backward = rnn_layers.rnn_backward if self.cell_type == 'rnn' else rnn_layers.lstm_backward
+
         h0, proj_cache = layers.affine_forward(features, w=W_proj, b=b_proj)
         embed, embed_cache = rnn_layers.word_embedding_forward(captions_in, W=W_embed)
-        if self.cell_type == 'rnn':
-            hs, rnn_cache = rnn_layers.rnn_forward(x=embed, h0=h0, Wx=Wx, Wh=Wh, b=b)
-        else:
-            raise NotImplementedError()
+        hs, rnn_cache = forward(x=embed, h0=h0, Wx=Wx, Wh=Wh, b=b)
         scores, decoded_cache = rnn_layers.temporal_affine_forward(x=hs, w=W_vocab, b=b_vocab)
         loss, delta = rnn_layers.temporal_softmax_loss(x=scores, y=captions_out, mask=mask)
 
         delta, grads['W_vocab'], grads['b_vocab'] = rnn_layers.temporal_affine_backward(delta, decoded_cache)
-        dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = rnn_layers.rnn_backward(dh=delta, cache=rnn_cache)
+        dx, dh0, grads['Wx'], grads['Wh'], grads['b'] = backward(dh=delta, cache=rnn_cache)
         _, grads['W_proj'], grads['b_proj'] = layers.affine_backward(dout=dh0, cache=proj_cache)
         grads['W_embed'] = rnn_layers.word_embedding_backward(dout=dx, cache=embed_cache)
         ############################################################################
@@ -215,15 +215,24 @@ class CaptioningRNN(object):
         # functions; you'll need to call rnn_step_forward or lstm_step_forward in #
         # a loop.                                                                 #
         ###########################################################################
+
+
         h, _ = layers.affine_forward(features, w=W_proj, b=b_proj)
+        c = np.zeros_like(h)
         word = np.array(N*[[self._start]])
         captions[:, 0] = word.reshape(-1,)
         t = 1
         while t < max_length:
             embedding, _ = rnn_layers.word_embedding_forward(x=word, W=W_embed)
-            h, _ = rnn_layers.rnn_step_forward(x=embedding, prev_h=h, Wx=Wx, Wh=Wh, b=b)
-            score, _ = rnn_layers.temporal_affine_forward(x=h[:, :-1], w=W_vocab, b=b_vocab)
-            word = np.argmax(score, axis=-1)
+            embedding = np.squeeze(embedding, axis=1)
+            if self.cell_type == 'rnn':
+                h, _ = rnn_layers.rnn_step_forward(x=embedding, prev_h=h, Wx=Wx, Wh=Wh, b=b)
+            elif self.cell_type == 'lstm':
+                h, c, _ = rnn_layers.lstm_step_forward(x=embedding, prev_h=h, prev_c=c, Wx=Wx, Wh=Wh, b=b)
+            else:
+                raise NotImplementedError()
+            score, _ = layers.affine_forward(x=h, w=W_vocab, b=b_vocab)
+            word = np.expand_dims(np.argmax(score, axis=-1), 1)
             captions[:, t] = word.reshape(-1,)
             t += 1
         ############################################################################

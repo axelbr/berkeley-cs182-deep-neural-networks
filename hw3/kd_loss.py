@@ -2,40 +2,45 @@ import torch as th
 from torch import nn
 from torch.nn import functional as F
 
+
 class AttentionLayerLoss(nn.Module):
-  """
-  Computes the difference between teacher and student attention output.
-  Attention weights learned by large language models hold sophisticated
-  syntax information, so are worth matching on their own.
-  """
-  def __init__(self):
-    super().__init__()
-  def forward(self,teacher_attn,student_attn):
-    """MSE loss of teacher attention and projected student attention.
-
-        :param teacher_attn: Tensor with shape [batch_size, channels]
-        :param student_attn: Tensor with shape [batch_size, channels]
-
-        :return: loss: Tensor with shape [1,]
     """
-    ####################################  YOUR CODE HERE  ####################################
-    # PART 1: Implement Attention Layer Loss
-    # Take the MSE loss between the student and teacher attention.
-    # To simplify calculations, remember that E[E[X|Y]] = E[X].
-    teacher_attn.detach_()
-    loss = 
-    return loss
-    ####################################  END OF YOUR CODE  ##################################
+    Computes the difference between teacher and student attention output.
+    Attention weights learned by large language models hold sophisticated
+    syntax information, so are worth matching on their own.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, teacher_attn, student_attn):
+        """MSE loss of teacher attention and projected student attention.
+
+            :param teacher_attn: Tensor with shape [batch_size, channels]
+            :param student_attn: Tensor with shape [batch_size, channels]
+
+            :return: loss: Tensor with shape [1,]
+        """
+        ####################################  YOUR CODE HERE  ####################################
+        # PART 1: Implement Attention Layer Loss
+        # Take the MSE loss between the student and teacher attention.
+        # To simplify calculations, remember that E[E[X|Y]] = E[X].
+        teacher_attn.detach_()
+        loss = th.mean(th.pow(student_attn - teacher_attn, 2))
+        return loss
+        ####################################  END OF YOUR CODE  ##################################
+
 
 class HiddenLayerLoss(nn.Module):
     """
     Computes the difference between teacher and student encoder block output
     """
-    def __init__(self,teacher_dim,student_dim):
+
+    def __init__(self, teacher_dim, student_dim):
         super().__init__()
-        self.proj = nn.Linear(student_dim,teacher_dim)
-        
-    def forward(self,teacher_hddn,student_hddn):
+        self.proj = nn.Linear(student_dim, teacher_dim)
+
+    def forward(self, teacher_hddn, student_hddn):
         """MSE loss of teacher's encoder block and projected student output.
 
             :param teacher_hddn: Tensor with shape [batch_size, teacher_hidden_size]
@@ -49,19 +54,22 @@ class HiddenLayerLoss(nn.Module):
         # then take the MSE loss between the student and teacher hidden layer outputs.
         # To simplify calculations, remember that E[E[X|Y]] = E[X].
         teacher_hddn.detach_()
-        proj_student = 
-        loss = 
+        proj_student = self.proj.forward(student_hddn)
+        loss = th.mean(th.pow(proj_student - teacher_hddn, 2))
         return loss
         ####################################  END OF YOUR CODE  ##################################
+
 
 class EmbeddingLayerLoss(nn.Module):
     """
     Computes the difference between teacher and student embedding output
     """
-    def __init__(self,teacher_dim,student_dim):
+
+    def __init__(self, teacher_dim, student_dim):
         super().__init__()
-        self.proj = nn.Linear(student_dim,teacher_dim)
-    def forward(self,teacher_embd,student_embd):
+        self.proj = nn.Linear(student_dim, teacher_dim)
+
+    def forward(self, teacher_embd, student_embd):
         """MSE loss of teacher embeddings and projected student embeddings.
 
             :param teacher_embd: Tensor with shape [word_count, teacher_embedding_size]
@@ -75,18 +83,21 @@ class EmbeddingLayerLoss(nn.Module):
         # Then take their MSE loss.
         # To simplify calculations, remember that E[E[X|Y]] = E[X].
         teacher_embd.detach_()
-        proj_student = 
-        loss = 
+        proj_student = self.proj.forward(student_embd)
+        loss = th.mean(th.pow(proj_student - teacher_embd, 2))
         return loss
         ####################################  END OF YOUR CODE  ##################################
-    
+
+
 class PredictionLoss(nn.Module):
     """
     Computes the difference between teacher and student predicted logits
     """
+
     def __init__(self):
         super().__init__()
-    def forward(self,teacher_pred,student_pred,t=1):
+
+    def forward(self, teacher_pred, student_pred, t=1):
         """Soft Cross-entropy loss of teacher and student prediction logits.
 
             :param teacher_pred: Tensor with shape [batch_size, word_count]
@@ -101,31 +112,33 @@ class PredictionLoss(nn.Module):
         # The F.softmax and F.log_softmax will be helpful here
         # Also keep in mind that the last dimension of the prediction is the feature dimension.
         teacher_pred.detach_()
-        target_terms = 
-        pred_terms = 
-        samplewise_sce = 
+        target_terms = teacher_pred / t
+        pred_terms = student_pred / t
+        samplewise_sce = -th.sum(F.softmax(target_terms, dim=-1) * F.log_softmax(pred_terms, dim=-1), dim=-1)
         mean_sce = samplewise_sce.mean()
         return mean_sce
         ####################################  END OF YOUR CODE  ##################################
+
 
 class KnowledgeDistillationLoss(nn.Module):
     """
     Computes the total difference between all layer outputs of student and teacher,
     following a mapping between teacher and student encoder blocks.
     """
-    def __init__(self,teacher_embd_dim,student_embd_dim,teacher_hddn_dim,student_hddn_dim,layer_mapping):
+
+    def __init__(self, teacher_embd_dim, student_embd_dim, teacher_hddn_dim, student_hddn_dim, layer_mapping):
         super().__init__()
         self.layer_mapping = layer_mapping
-        self.embedding_loss = EmbeddingLayerLoss(teacher_embd_dim,student_embd_dim)
+        self.embedding_loss = EmbeddingLayerLoss(teacher_embd_dim, student_embd_dim)
         for i in range(len(layer_mapping)):
             attention_loss = AttentionLayerLoss()
-            self.__setattr__(f"attention_loss{i}",attention_loss)
-            
-            hidden_loss = HiddenLayerLoss(teacher_hddn_dim,student_hddn_dim)
-            self.__setattr__(f"hidden_loss{i}",hidden_loss)
+            self.__setattr__(f"attention_loss{i}", attention_loss)
+
+            hidden_loss = HiddenLayerLoss(teacher_hddn_dim, student_hddn_dim)
+            self.__setattr__(f"hidden_loss{i}", hidden_loss)
         self.prediction_loss = PredictionLoss()
 
-    def forward(self,teacher_out,student_out,penalize_prediction=False):
+    def forward(self, teacher_out, student_out, penalize_prediction=False):
         """Soft Cross-entropy loss of teacher and student prediction logits.
 
             :param teacher_out: Dictionary {
@@ -141,27 +154,25 @@ class KnowledgeDistillationLoss(nn.Module):
         ####################################  YOUR CODE HERE  ####################################
         # The total loss in comparing the teacher and student models is the sum of losses for each module.
         # Since the student will likely have less intermediate encoder blocks than the teacher,
-        # there needs to be a mapping between teacher and student blocks. 
-        
+        # there needs to be a mapping between teacher and student blocks.
+
         # take the loss for the embedding
-        embedding_loss = self.embedding_loss(teacher_out['embeddings'],student_out['embeddings'])
-        
+        embedding_loss = self.embedding_loss(teacher_out['embeddings'], student_out['embeddings'])
         # apply the loss from each attention and hidden layer based on the layer mapping
         attention_loss = 0
         hidden_loss = 0
-        for st_i,te_i in enumerate(self.layer_mapping):
+        for st_i, te_i in enumerate(self.layer_mapping):
             attn_fn = self.__getattr__(f"attention_loss{st_i}")
-            attention_loss += 
+            attention_loss += attn_fn(teacher_out['attentions'][te_i], student_out['attentions'][st_i])
             hddn_fn = self.__getattr__(f"hidden_loss{st_i}")
-            hidden_loss += 
-            
+            hidden_loss += hddn_fn(teacher_out['hidden_states'][te_i], student_out['hidden_states'][st_i])
+
         # sum up the loss for each layer
-        loss = 
-        
+        loss = embedding_loss + attention_loss + hidden_loss
+
         # apply the prediction penalty during task distillation
         if penalize_prediction:
-            prediction_loss = 
-            loss += 
+            prediction_loss = self.prediction_loss(teacher_out['logits'], student_out['logits'])
+            loss += prediction_loss
         return loss
         ####################################  END OF YOUR CODE  ##################################
-        

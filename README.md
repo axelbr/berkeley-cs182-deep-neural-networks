@@ -1,1 +1,1 @@
-# berkeley-cs182-deep-neural-networks
+# CS W182 / 282A at UC Berkeley (Spring 2021)
